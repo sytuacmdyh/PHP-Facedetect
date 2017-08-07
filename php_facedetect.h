@@ -26,8 +26,8 @@
 
 PHP_MINFO_FUNCTION(facedetect);
 
-PHP_FUNCTION(face_detect);
-PHP_FUNCTION(face_count);
+PHP_FUNCTION(object_detect);
+PHP_FUNCTION(object_count);
 
 extern zend_module_entry facedetect_module_entry;
 #define phpext_facedetect_ptr &facedetect_module_entry

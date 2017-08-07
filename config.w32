@@ -12,7 +12,7 @@ if (PHP_FACEDETECT == "yes") {
 
 		AC_DEFINE("HAVE_FACEDETECT", 1);
 
-		EXTENSION("facedetect", "facedetect.c", true);
+		EXTENSION("facedetect", "facedetect.cpp", true);
 	} else {
 		WARNING("facedetect not enabled, headers or libraries not found");
 	}

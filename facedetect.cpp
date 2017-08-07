@@ -26,15 +26,20 @@
 #include "opencv2/photo/photo_c.h"
 #include "opencv2/objdetect/objdetect_c.h"
 
+#include <opencv2/opencv.hpp>
 #include "opencv2/core/version.hpp"
+
+#include "string"
+using namespace std;
+using namespace cv;
 
 /* {{{ facedetect_functions[]
  *
  * Every user visible function must have an entry in facedetect_functions[].
  */
 static zend_function_entry facedetect_functions[] = {
-    PHP_FE(face_detect, NULL)
-    PHP_FE(face_count, NULL)
+    PHP_FE(object_detect, NULL)
+    PHP_FE(object_count, NULL)
     {NULL, NULL, NULL}
 };
 /* }}} */
@@ -75,12 +80,11 @@ PHP_MINFO_FUNCTION(facedetect)
 }
 /* }}} */
 
-IplImage* cvLoadImage(char *file, int number);
 
 static void php_facedetect(INTERNAL_FUNCTION_PARAMETERS, int return_type)
 {
 	char *file, *casc;
-	long flen, clen;
+	long flen, clen, myparam;
 
 #ifdef ZEND_ENGINE_3
 	zval array;
@@ -89,52 +93,34 @@ static void php_facedetect(INTERNAL_FUNCTION_PARAMETERS, int return_type)
 #endif
 	zval *pArray;
 
-	CvHaarClassifierCascade* cascade;
-	IplImage *img, *gray;
-	CvMemStorage *storage;
-	CvSeq *faces;
-	CvRect *rect;
+	Mat srcImage, grayImage;
 
-	if(zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", &file, &flen, &casc, &clen) == FAILURE) {
+	if(zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ssl", &file, &flen, &casc, &clen, &myparam) == FAILURE) {
 		RETURN_NULL();
 	}
 
-	if(access(file, R_OK) == -1) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Image file is missing or could not be read.\n");
+	CascadeClassifier cascade;
+	if(!cascade.load( casc ) ) {
 		RETURN_FALSE;
-	}
-	
-	img = cvLoadImage(file, 1);
-	if(!img) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Image could not be loaded.\n");
-		RETURN_FALSE;
-	}
+	}	
 
-	if(access(casc, R_OK) == -1) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Haar-cascade file is missing or could not be read.\n");
-		RETURN_FALSE;
-	}
-	cascade = (CvHaarClassifierCascade*)cvLoad(casc, 0, 0, 0);
-	if(!cascade) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Haar-cascade file could not be loaded.\n");
-		RETURN_FALSE;
+	Mat rawData  =  Mat( 1, flen, CV_8UC1, file );
+
+	srcImage = imdecode(rawData, 0);
+	if(!srcImage.data){
+		RETURN_TRUE;
 	}
 
-	gray = cvCreateImage(cvSize(img->width, img->height), 8, 1);
-	cvCvtColor(img, gray, CV_BGR2GRAY);
-	cvEqualizeHist(gray, gray);
-
-	storage = cvCreateMemStorage(0);
-
-	faces = cvHaarDetectObjects(gray, cascade, storage, 1.1, 2, CV_HAAR_DO_CANNY_PRUNING, cvSize(0, 0), cvSize(0, 0));
+	vector<Rect> rect;
+	cascade.detectMultiScale(srcImage, rect, 1.1, myparam, 0);
 
 	if(return_type) {
 
 		array_init(return_value);
 
-		if(faces && faces->total > 0) {
+		if(rect.size() > 0) {
 			int i;
-			for(i = 0; i < faces->total; i++) {
+			for(i = 0; i < rect.size(); i++) {
 #ifdef ZEND_ENGINE_3
 				ZVAL_NEW_ARR(&array);
 				pArray = &array;
@@ -144,36 +130,31 @@ static void php_facedetect(INTERNAL_FUNCTION_PARAMETERS, int return_type)
 #endif
 				array_init(pArray);
 
-				rect = (CvRect *)cvGetSeqElem(faces, i);
-
-				add_assoc_long(pArray, "x", rect->x);
-				add_assoc_long(pArray, "y", rect->y);
-				add_assoc_long(pArray, "w", rect->width);
-				add_assoc_long(pArray, "h", rect->height);
+				add_assoc_long(pArray, "x", rect[i].x);
+				add_assoc_long(pArray, "y", rect[i].y);
+				add_assoc_long(pArray, "w", rect[i].width);
+				add_assoc_long(pArray, "h", rect[i].height);
 
 				add_next_index_zval(return_value, pArray);
 			}
-		}
+		 }
 	} else {
-		RETVAL_LONG(faces ? faces->total : 0);
+		RETVAL_LONG(rect.size());
 	}
 
-	cvReleaseMemStorage(&storage);
-	cvReleaseImage(&gray);
-	cvReleaseImage(&img);
 }
 
-/* {{{ proto array face_detect(string picture_path, string cascade_file)
+/* {{{ proto array object_detect(string picture_path, string cascade_file)
    Finds coordinates of faces (or in gernal "objects") on the given picture */
-PHP_FUNCTION(face_detect)
+PHP_FUNCTION(object_detect)
 {
 	php_facedetect(INTERNAL_FUNCTION_PARAM_PASSTHRU, 1);
 }
 /* }}} */
 
-/* {{{ proto int face_count(string picture_path, string cascade_file)
+/* {{{ proto int object_count(string picture_path, string cascade_file)
    Finds number of faces (or in gernal "objects") on the given picture*/
-PHP_FUNCTION(face_count)
+PHP_FUNCTION(object_count)
 {
 	php_facedetect(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
 }
