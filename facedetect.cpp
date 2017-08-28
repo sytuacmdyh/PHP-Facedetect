@@ -93,7 +93,7 @@ static void php_facedetect(INTERNAL_FUNCTION_PARAMETERS, int return_type)
 #endif
 	zval *pArray;
 
-	Mat srcImage, grayImage;
+	Mat srcImage, srcImage2;
 
 	if(zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ssl", &file, &flen, &casc, &clen, &myparam) == FAILURE) {
 		RETURN_NULL();
@@ -108,11 +108,16 @@ static void php_facedetect(INTERNAL_FUNCTION_PARAMETERS, int return_type)
 
 	srcImage = imdecode(rawData, 0);
 	if(!srcImage.data){
-		RETURN_TRUE;
+		RETURN_FALSE;
 	}
 
 	vector<Rect> rect;
-	cascade.detectMultiScale(srcImage, rect, 1.1, myparam, 0);
+	cascade.detectMultiScale(srcImage, rect, 1.1, myparam, 3);
+
+	flip(srcImage, srcImage2, -1);
+	if (!rect.size()) {
+		cascade.detectMultiScale(srcImage2, rect, 1.1, myparam, 3);
+	}
 
 	if(return_type) {
 
